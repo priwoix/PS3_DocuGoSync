@@ -4,7 +4,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "../include/json.hpp"
 
+using json = nlohmann::json;
 using namespace std;
 
 struct Constant {
@@ -12,6 +14,18 @@ struct Constant {
     string type;
     string value;
     int lineNumber;
+};
+
+struct Change {
+    string symbol;
+    string oldValue;
+    string newValue;
+    string oldType;
+    string newType;
+    string changeType;
+
+    int oldLine;
+    int newLine;
 };
 
 
@@ -56,14 +70,14 @@ vector<Constant> extractConstants(string filename) {
     return constants;
 }
 
-void compareConstants(
+
+vector<Change> compareConstants(
     const vector<Constant>& oldConstants,
     const vector<Constant>& newConstants
 ) {
 
-    cout << "\n========== CHANGE REPORT ==========\n";
+    vector<Change> changes;
 
-    
     for (const Constant& oldC : oldConstants) {
 
         bool found = false;
@@ -71,20 +85,25 @@ void compareConstants(
         for (const Constant& newC : newConstants) {
 
             if (oldC.name == newC.name) {
+
                 found = true;
 
                 if (oldC.value != newC.value ||
                     oldC.type != newC.type) {
 
-                    cout << "MODIFIED: " << oldC.name
-                         << " | " << oldC.value
-                         << " -> " << newC.value
-                         << " | Old line: " << oldC.lineNumber
-                         << " | New line: " << newC.lineNumber
-                         << endl;
-                }
-                else {
-                    cout << "UNCHANGED: " << oldC.name << endl;
+                    Change change;
+
+                    change.symbol = oldC.name;
+                    change.oldValue = oldC.value;
+                    change.newValue = newC.value;
+                    change.changeType = "modified";
+
+                    change.oldLine = oldC.lineNumber;
+                    change.newLine = newC.lineNumber;
+                    change.oldType = oldC.type;
+                    change.newType = newC.type;
+
+                    changes.push_back(change);
                 }
 
                 break;
@@ -92,19 +111,29 @@ void compareConstants(
         }
 
         if (!found) {
-            cout << "REMOVED: " << oldC.name
-                 << " | Previous value: " << oldC.value
-                 << " | Old line: " << oldC.lineNumber
-                 << endl;
+
+            Change change;
+
+            change.symbol = oldC.name;
+            change.oldValue = oldC.value;
+            change.newValue = "";
+            change.changeType = "removed";
+            change.oldType = oldC.type;
+            change.newType = "";
+
+            change.oldLine = oldC.lineNumber;
+            change.newLine = -1;
+
+            changes.push_back(change);
         }
     }
-
 
     for (const Constant& newC : newConstants) {
 
         bool found = false;
 
         for (const Constant& oldC : oldConstants) {
+
             if (newC.name == oldC.name) {
                 found = true;
                 break;
@@ -112,15 +141,65 @@ void compareConstants(
         }
 
         if (!found) {
-            cout << "ADDED: " << newC.name
-                 << " | New value: " << newC.value
-                 << " | New line: " << newC.lineNumber
-                 << endl;
+
+            Change change;
+
+            change.symbol = newC.name;
+            change.oldValue = "";
+            change.newValue = newC.value;
+            change.changeType = "added";
+            change.oldType = "";
+            change.newType = newC.type;
+
+            change.oldLine = -1;
+            change.newLine = newC.lineNumber;
+
+            changes.push_back(change);
         }
     }
 
-    cout << "===================================\n";
+    return changes;
 }
+
+void generateJSON(const vector<Change>& changes) {
+
+    json report;
+
+    report["language"] = "cpp";
+    report["changes"] = json::array();
+
+    for (const Change& c : changes) {
+
+        json item;
+
+        item["symbol"] = c.symbol;
+        item["change_type"] = c.changeType;
+
+        item["old_value"] = c.oldValue;
+        item["new_value"] = c.newValue;
+
+        item["old_type"] = c.oldType;
+        item["new_type"] = c.newType;
+
+        item["old_line"] = c.oldLine;
+        item["new_line"] = c.newLine;
+
+        report["changes"].push_back(item);
+    }
+
+    ofstream output("output/changes.json");
+
+    if (!output.is_open()) {
+        cerr << "Could not create JSON output!" << endl;
+        return;
+    }
+
+    output << report.dump(4);
+    output.close();
+
+    cout << "JSON report generated successfully!" << endl;
+}
+
 
 int main() {
 
@@ -130,7 +209,10 @@ int main() {
     vector<Constant> newConstants =
         extractConstants("test_data/new.cpp");
 
-    compareConstants(oldConstants, newConstants);
+     vector<Change> changes =
+        compareConstants(oldConstants, newConstants);
+
+    generateJSON(changes);
 
     return 0;
 }
