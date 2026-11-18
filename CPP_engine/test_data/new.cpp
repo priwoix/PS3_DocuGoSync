@@ -3,7 +3,9 @@ using namespace std;
 
 const int TIMEOUT = 60;
 const int MAX_USERS = 100;
-
+const int RETRY_COUNT = 5;
+const double TAX_RATE = 0.20;
+     
 int calculateScore(int marks) {
     return marks * 2;
 }

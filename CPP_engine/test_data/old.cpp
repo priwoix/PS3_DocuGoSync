@@ -3,6 +3,8 @@ using namespace std;
 
 const int TIMEOUT = 30;
 const int MAX_USERS = 100;
+const int PORT = 8080;
+const double TAX_RATE = 0.18;
 
 int calculateScore(int marks) {
     return marks * 2;
