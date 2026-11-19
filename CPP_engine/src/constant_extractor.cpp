@@ -4,30 +4,51 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <regex>
+
+#include "../include/constant_extractor.h"
 #include "../include/json.hpp"
 
-using json = nlohmann::json;
 using namespace std;
+using json = nlohmann::json;
 
-struct Constant {
-    string name;
-    string type;
-    string value;
-    int lineNumber;
-};
+// vector<Constant> extractConstants(string filename) {
+//     vector<Constant> constants;
+//     ifstream file(filename);
 
-struct Change {
-    string symbol;
-    string oldValue;
-    string newValue;
-    string oldType;
-    string newType;
-    string changeType;
+//     if (!file.is_open()) {
+//         cerr << "Could not open: " << filename << endl;
+//         return constants;
+//     }
 
-    int oldLine;
-    int newLine;
-};
+//     string line;
+//     int lineNumber = 0;
 
+//     while (getline(file, line)) {
+//         lineNumber++;
+
+//         string keyword, type, identifier, assignment, value;
+//         stringstream ss(line);
+
+//         ss >> keyword >> type >> identifier >> assignment >> value;
+
+//         if (keyword == "const" && assignment == "=") {
+//             if (!value.empty() && value.back() == ';') {
+//                 value.pop_back();
+//             }
+
+//             Constant c;
+//             c.name = identifier;
+//             c.type = type;
+//             c.value = value;
+//             c.lineNumber = lineNumber;
+
+//             constants.push_back(c);
+//         }
+//     }
+
+//     return constants;
+// }
 
 vector<Constant> extractConstants(string filename) {
 
@@ -39,34 +60,31 @@ vector<Constant> extractConstants(string filename) {
         return constants;
     }
 
+    regex constantPattern(
+        R"(^\s*(const|constexpr)\s+(.+?)\s+([A-Za-z_]\w*)\s*=\s*(.*?)\s*;\s*(?://.*)?$)"
+    );
+
     string line;
     int lineNumber = 0;
 
     while (getline(file, line)) {
         lineNumber++;
 
-        string keyword, type, identifier, assignment, value;
+        smatch match;
 
-        stringstream ss(line);
-        ss >> keyword >> type >> identifier >> assignment >> value;
-
-        if (keyword == "const" && assignment == "=") {
-
-            if (!value.empty() && value.back() == ';') {
-                value.pop_back();
-            }
+        if (regex_match(line, match, constantPattern)) {
 
             Constant c;
-            c.name = identifier;
-            c.type = type;
-            c.value = value;
+
+            c.type = match[2].str();
+            c.name = match[3].str();
+            c.value = match[4].str();
             c.lineNumber = lineNumber;
 
             constants.push_back(c);
         }
     }
 
-    file.close();
     return constants;
 }
 
@@ -75,29 +93,23 @@ vector<Change> compareConstants(
     const vector<Constant>& oldConstants,
     const vector<Constant>& newConstants
 ) {
-
     vector<Change> changes;
 
     for (const Constant& oldC : oldConstants) {
-
         bool found = false;
 
         for (const Constant& newC : newConstants) {
-
             if (oldC.name == newC.name) {
-
                 found = true;
 
                 if (oldC.value != newC.value ||
                     oldC.type != newC.type) {
 
                     Change change;
-
                     change.symbol = oldC.name;
                     change.oldValue = oldC.value;
                     change.newValue = newC.value;
                     change.changeType = "modified";
-
                     change.oldLine = oldC.lineNumber;
                     change.newLine = newC.lineNumber;
                     change.oldType = oldC.type;
@@ -111,16 +123,13 @@ vector<Change> compareConstants(
         }
 
         if (!found) {
-
             Change change;
-
             change.symbol = oldC.name;
             change.oldValue = oldC.value;
             change.newValue = "";
             change.changeType = "removed";
             change.oldType = oldC.type;
             change.newType = "";
-
             change.oldLine = oldC.lineNumber;
             change.newLine = -1;
 
@@ -129,11 +138,9 @@ vector<Change> compareConstants(
     }
 
     for (const Constant& newC : newConstants) {
-
         bool found = false;
 
         for (const Constant& oldC : oldConstants) {
-
             if (newC.name == oldC.name) {
                 found = true;
                 break;
@@ -141,16 +148,13 @@ vector<Change> compareConstants(
         }
 
         if (!found) {
-
             Change change;
-
             change.symbol = newC.name;
             change.oldValue = "";
             change.newValue = newC.value;
             change.changeType = "added";
             change.oldType = "";
             change.newType = newC.type;
-
             change.oldLine = -1;
             change.newLine = newC.lineNumber;
 
@@ -162,25 +166,20 @@ vector<Change> compareConstants(
 }
 
 void generateJSON(const vector<Change>& changes) {
-
     json report;
 
     report["language"] = "cpp";
     report["changes"] = json::array();
 
     for (const Change& c : changes) {
-
         json item;
 
         item["symbol"] = c.symbol;
         item["change_type"] = c.changeType;
-
         item["old_value"] = c.oldValue;
         item["new_value"] = c.newValue;
-
         item["old_type"] = c.oldType;
         item["new_type"] = c.newType;
-
         item["old_line"] = c.oldLine;
         item["new_line"] = c.newLine;
 
@@ -198,21 +197,4 @@ void generateJSON(const vector<Change>& changes) {
     output.close();
 
     cout << "JSON report generated successfully!" << endl;
-}
-
-
-int main() {
-
-    vector<Constant> oldConstants =
-        extractConstants("test_data/old.cpp");
-
-    vector<Constant> newConstants =
-        extractConstants("test_data/new.cpp");
-
-     vector<Change> changes =
-        compareConstants(oldConstants, newConstants);
-
-    generateJSON(changes);
-
-    return 0;
 }

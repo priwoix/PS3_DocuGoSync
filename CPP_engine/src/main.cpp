@@ -1,25 +1,17 @@
 #include <iostream>
-#include <fstream>
-#include <string>
-
-using namespace std;
+#include "../include/constant_extractor.h"
 
 int main() {
+    std::vector<Constant> oldConstants =
+        extractConstants("test_data/old.cpp");
 
-    ifstream oldFile("test_data/old.cpp");
+    std::vector<Constant> newConstants =
+        extractConstants("test_data/new.cpp");
 
-    if (!oldFile.is_open()) {
-        cout << "Could not open old file!" << endl;
-        return 1;
-    }
+    std::vector<Change> changes =
+        compareConstants(oldConstants, newConstants);
 
-    string line;
-
-    while (getline(oldFile, line)) {
-        cout << line << endl;
-    }
-
-    oldFile.close();
+    generateJSON(changes);
 
     return 0;
 }
