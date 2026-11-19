@@ -169,10 +169,26 @@ void generateJSON(const vector<Change>& changes) {
     json report;
 
     report["language"] = "cpp";
+    report["status"] = "success";
+    report["total_changes"] = changes.size();
+
+    report["summary"]["added"] = 0;
+    report["summary"]["removed"] = 0;
+    report["summary"]["modified"] = 0;
+
     report["changes"] = json::array();
 
     for (const Change& c : changes) {
         json item;
+        if (c.changeType == "added") {
+            report["summary"]["added"] = report["summary"]["added"].get<int>() + 1;
+        }
+        else if (c.changeType == "removed") {
+            report["summary"]["removed"] = report["summary"]["removed"].get<int>() + 1;
+        }
+        else if (c.changeType == "modified") {
+            report["summary"]["modified"] = report["summary"]["modified"].get<int>() + 1;
+        }
 
         item["symbol"] = c.symbol;
         item["change_type"] = c.changeType;
